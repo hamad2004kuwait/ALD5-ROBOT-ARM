@@ -1,1 +1,0 @@
-trial_id,date,operator,test_id,input_mode,requested_key,recognized_key,correct_recognition,correct_key_retrieved,returned_home,recognition_seconds,retrieval_seconds,unexpected_motion,result,notes

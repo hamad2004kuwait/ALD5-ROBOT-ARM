@@ -1,21 +1,31 @@
-# AL5D AI Key Fetcher
-Python keyboard and natural-language voice control for three physical keys using an SSC-32U-compatible serial controller.
+# AL5D AI Key Retrieval System
+
+Python application for controlling an AL5D robotic arm through an SSC-32U serial controller. Keyboard commands and AI-assisted voice commands select one of three configurable pickup-and-return profiles.
 
 ## Setup
-- Install Python and dependencies: `python -m pip install -r requirements.txt`.
-- Run `python AL5D_Key_Fetcher.py` on macOS (uses `say`).
-- Voice or conversational input requires an OpenAI API key (environment variable or masked popup).
-- Select keyboard mode or microphone mode. A/B/C select the named key, Q exits. In voice mode say “Get me Key B”.
 
-## Calibration and safety
-Simulation is enabled by default. Key A uses the original coordinates; B and C are intentionally unset. Calibrate each start, pickup and return path, gripper limits, and verify physical clearance before setting the corresponding VERIFIED flag and disabling DRY_RUN. Confirm the serial port and compatible controller firmware. Start only from a known safe pose, with clear workspace and accessible physical power cutoff. Serial commands do not provide grip or position feedback. The program's confirmation is not an emergency stop. The gripper remains closed after retrieval. Safely remove the key before confirming REMOVED (keyboard R or voice “key removed”). Do not force the gripper. Real movement requires typed EXECUTE. No hardware testing has been performed.
-
-## Automated verification
-
-Install `python -m pip install -r requirements-dev.txt` and run:
+Requires Python 3, an AL5D arm, SSC-32U, USB serial connection and suitable power supply. Voice control also requires a microphone, internet access and an OpenAI API key. Spoken output uses macOS `say`.
 
 ```bash
-python -m pytest -q --cov=AL5D_Key_Fetcher --cov-report=term-missing
+python3 -m pip install -r requirements.txt
+python3 GDIP_CODE.py
 ```
 
-The test suite runs without hardware or API credentials; runtime dependencies are still needed for real operation. GitHub Actions is configured to run on push and pull request. See [test plan](docs/Test_Plan.md), [results](docs/Test_Results.md), [risk assessment](docs/Risk_Assessment.md), [architecture](docs/System_Architecture.md) and [user manual](docs/User_Manual.md). Record real measurements in [hardware trials](docs/hardware_trials.csv). Physical B/C poses remain unset. The program targets SSC-32U, not generic Arduino firmware.
+Set `PORT` to the actual controller port. The program defaults to hardware mode; set `DRY_RUN = True` to test without moving the arm. Keep the workspace clear, verify the motion path and empty the gripper before each request. Enter the API key privately when prompted; never commit it.
+
+## Controls
+
+Choose 1 for keyboard or 2 for microphone. A, B and C select the corresponding physical key profile; Q exits. Example voice command: “Bring me Key B.” Green indicates ready/completed, red retrieving, yellow returning.
+
+## Software testing
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest -q
+```
+
+Tests run offline with simulated or mocked hardware and API responses. See [test results](documentation/Test_Results.md).
+
+## Limitations
+
+All three profiles currently use identical servo coordinates; distinct key positions require calibration. The system has no key-presence sensor or collision detection. Sequence completion does not prove successful pickup. No automatic key-removal confirmation is implemented. Generic pulse-width checks are not mechanical safety limits. Physical tests and live voice recognition must be verified separately. Closing the serial connection does not guarantee a moving servo stops.
