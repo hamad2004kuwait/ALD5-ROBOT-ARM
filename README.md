@@ -9,3 +9,13 @@ Python keyboard and natural-language voice control for three physical keys using
 
 ## Calibration and safety
 Simulation is enabled by default. Key A uses the original coordinates; B and C are intentionally unset. Calibrate each start, pickup and return path, gripper limits, and verify physical clearance before setting the corresponding VERIFIED flag and disabling DRY_RUN. Confirm the serial port and compatible controller firmware. Start only from a known safe pose, with clear workspace and accessible physical power cutoff. Serial commands do not provide grip or position feedback. The program's confirmation is not an emergency stop. The gripper remains closed after retrieval. Safely remove the key before confirming REMOVED (keyboard R or voice “key removed”). Do not force the gripper. Real movement requires typed EXECUTE. No hardware testing has been performed.
+
+## Automated verification
+
+Install `python -m pip install -r requirements-dev.txt` and run:
+
+```bash
+python -m pytest -q --cov=AL5D_Key_Fetcher --cov-report=term-missing
+```
+
+The test suite runs without hardware or API credentials; runtime dependencies are still needed for real operation. GitHub Actions is configured to run on push and pull request. See [test plan](docs/Test_Plan.md), [results](docs/Test_Results.md), [risk assessment](docs/Risk_Assessment.md), [architecture](docs/System_Architecture.md) and [user manual](docs/User_Manual.md). Record real measurements in [hardware trials](docs/hardware_trials.csv). Physical B/C poses remain unset. The program targets SSC-32U, not generic Arduino firmware.
