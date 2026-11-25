@@ -13,135 +13,35 @@ import sounddevice as sd
 from openai import OpenAI
 
 
-# ==================================================
-# 1. ROBOT SETTINGS
-# ==================================================
-
+# Robot settings (SSC-32U protocol)
 PORT = "/dev/cu.usbserial-A10LLRB7"
-
 BAUD = 115200
-
-# False = Real robot
-# True = Simulation
-
-DRY_RUN = False
-
-# Only set True after physically verifying movements
-
-PICK_VERIFIED = True
-DROP_VERIFIED = True
-
-# Servo movement time in milliseconds
-
+DRY_RUN = True  # Change only after safe calibration
 MOVE_TIME = 1000
-
-# Pause between movements in seconds
-
 WAIT_TIME = 0.5
 
-
-# ==================================================
-# 2. OPTION A - PICK UP KEY AND HOLD IT
-# ==================================================
-
-# Joint order:
-# Base, Shoulder, Elbow, Wrist, Wrist Rotate
-
-A_START = [
-    1500,
-    1500,
-    1500,
-    1500,
-    1500
-]
-
-A_PICK = [
-    1800,
-    1700,
-    1000,
-    2000,
-    1500
-]
-
-A_RETURN = [
-    1500,
-    1500,
-    1500,
-    1500,
-    1500
-]
-
-
-# ==================================================
-# 3. OPTION B - PICK UP AND DELIVER KEY
-# ==================================================
-
-B_START = [
-    1500,
-    1500,
-    1500,
-    1500,
-    1500
-]
-
-B_PICK = [
-    1800,
-    1700,
-    1000,
-    2000,
-    1500
-]
-
-# Delivery position
-# Calibrate according to your robot setup
-
-B_DELIVER = [
-    1500,
-    1500,
-    1500,
-    1500,
-    1500
-]
-
-B_RETURN = [
-    1500,
-    1500,
-    1500,
-    1500,
-    1500
-]
-
-
-# ==================================================
-# 4. GRIPPER SETTINGS
-# ==================================================
-
-# Channel 5
-
+# Joint order: Base, Shoulder, Elbow, Wrist, Wrist Rotate
+A_START = [1500, 1500, 1500, 1500, 1500]
+A_PICK = [1800, 1700, 1000, 2000, 1500]
+A_RETURN = [1500, 1500, 1500, 1500, 1500]
+B_START = [1500, 1500, 1500, 1500, 1500]
+B_PICK = [None, None, None, None, None]  # Calibrate Key B
+B_RETURN = [1500, 1500, 1500, 1500, 1500]
+C_START = [1500, 1500, 1500, 1500, 1500]
+C_PICK = [None, None, None, None, None]  # Calibrate Key C
+C_RETURN = [1500, 1500, 1500, 1500, 1500]
+KEYS = {
+    "A": (A_START, A_PICK, A_RETURN),
+    "B": (B_START, B_PICK, B_RETURN),
+    "C": (C_START, C_PICK, C_RETURN),
+}
+VERIFIED = {"A": False, "B": False, "C": False}
 GRIP_OPEN = 1500
-
 GRIP_CLOSED = 2500
-
-
-# ==================================================
-# 5. LED SETTINGS
-# ==================================================
-
 GREEN_LED = 31
-
 RED_LED = 29
-
 YELLOW_LED = 28
-
-# True = HIGH turns LED on
-# False = LOW turns LED on
-
 LED_ACTIVE_HIGH = True
-
-
-# ==================================================
-# 6. CONNECT TO OPENAI
-# ==================================================
 
 def connect_ai():
 
@@ -179,9 +79,6 @@ def connect_ai():
     return client
 
 
-# ==================================================
-# 7. AI TEXT TO SPEECH
-# ==================================================
 
 def speak(message):
 
@@ -193,9 +90,6 @@ def speak(message):
     )
 
 
-# ==================================================
-# 8. MICROPHONE RECORDING
-# ==================================================
 
 def listen(client):
 
@@ -295,69 +189,21 @@ def listen(client):
 
             os.remove(filename)
 
-
-# ==================================================
-# 9. AI TASK CLASSIFICATION
-# ==================================================
-
 def ask_ai(client, instruction):
-
     response = client.responses.create(
-
         model="gpt-4.1-mini",
-
-        instructions="""
-        You are the task classifier for an
-        AL5D robotic key-fetching assistant.
-
-        Classify the user's instruction into
-        exactly ONE of four categories:
-
-        PICK_ONLY:
-        Explicit request to pick up or hold
-        a key without delivering it.
-
-        PICK_AND_DROP:
-        Explicit request to pick up, deliver,
-        drop off, or release a key.
-
-        CHAT:
-        General questions, greetings,
-        explanations, jokes or conversation.
-
-        INVALID:
-        Unclear instructions or unsupported
-        physical robot actions.
-
-        Respond with exactly one category name.
-
-        Never classify hypothetical questions
-        about the robot as movement commands.
-
-        Never generate servo coordinates.
-        """,
-
-        input=instruction
+        instructions="""Classify the AL5D physical key retrieval request.
+Return exactly one of A, B, C, CHAT, INVALID.
+A/B/C: explicit request to fetch, grab, pick up or bring that named key.
+Examples: 'Get me Key A' -> A; 'Can you grab key B?' -> B;
+'I need the third key' -> C. First/second/third mean A/B/C.
+CHAT: general conversation or hypothetical questions.
+INVALID: ambiguous, multiple keys, unsupported actions or missing key identity.
+Never infer a key when unspecified. Never generate servo commands.""",
+        input=instruction,
     )
-
-    decision = (
-        response.output_text.strip().upper()
-    )
-
-    if decision in (
-        "PICK_ONLY",
-        "PICK_AND_DROP",
-        "CHAT"
-    ):
-
-        return decision
-
-    return "INVALID"
-
-
-# ==================================================
-# 10. GENERAL AI CONVERSATION
-# ==================================================
+    decision = response.output_text.strip().upper()
+    return decision if decision in {"A", "B", "C", "CHAT", "INVALID"} else "INVALID"
 
 def chat(client, question):
 
@@ -388,9 +234,6 @@ def chat(client, question):
     speak(answer)
 
 
-# ==================================================
-# 11. SEND COMMANDS TO ROBOT
-# ==================================================
 
 def send(robot, command):
 
@@ -410,9 +253,6 @@ def send(robot, command):
     robot.flush()
 
 
-# ==================================================
-# 12. LED CONTROL
-# ==================================================
 
 def leds(robot, status):
 
@@ -474,9 +314,6 @@ def leds(robot, status):
     )
 
 
-# ==================================================
-# 13. MOVE ONE SERVO
-# ==================================================
 
 def servo(robot, channel, position):
 
@@ -512,9 +349,6 @@ def servo(robot, channel, position):
         )
 
 
-# ==================================================
-# 14. MOVE ROBOT TO A POSITION
-# ==================================================
 
 def move(robot, positions, reverse=False):
 
@@ -549,9 +383,6 @@ def move(robot, positions, reverse=False):
             )
 
 
-# ==================================================
-# 15. GRIPPER CONTROL
-# ==================================================
 
 def open_gripper(robot):
 
@@ -578,611 +409,99 @@ def close_gripper(robot):
         GRIP_CLOSED
     )
 
+def check_action(key):
+    for pose in KEYS[key]:
+        if len(pose) != 5 or any(type(v) is not int or not 600 <= v <= 2600 for v in pose):
+            raise ValueError(f"Key {key}: calibrate all five joint positions first.")
+    if not DRY_RUN and not VERIFIED[key]:
+        raise RuntimeError(f"Key {key} movement has not been physically verified.")
 
-# ==================================================
-# 16. OPTION A - PICK UP AND HOLD
-# ==================================================
 
-def option_a(robot):
-
-    print(
-        "\n================================"
-    )
-
-    print(
-        "OPTION A: PICK UP AND HOLD"
-    )
-
-    print(
-        "================================"
-    )
-
-    leds(
-        robot,
-        "RED"
-    )
-
-    # Move to starting position
-
-    print(
-        "\nMOVING TO START"
-    )
-
-    move(
-        robot,
-        A_START
-    )
-
-    # Open gripper
-
+def pickup(robot, key):
+    start, target, returned = KEYS[key]
+    leds(robot, "RED")
+    move(robot, start)
     open_gripper(robot)
-
-    # Move toward key
-
-    print(
-        "\nMOVING TO KEY"
-    )
-
-    move(
-        robot,
-        A_PICK
-    )
-
-    # Grab key
-
+    move(robot, target)
     close_gripper(robot)
+    leds(robot, "YELLOW")
+    move(robot, returned, reverse=True)
+    leds(robot, "GREEN")
+    print(f"Key {key}: pickup and return sequence completed.")
 
-    # Return home while holding key
-
-    print(
-        "\nRETURNING HOME WITH KEY"
-    )
-
-    move(
-        robot,
-        A_RETURN,
-        reverse=True
-    )
-
-    # Keep gripper closed
-
-    leds(
-        robot,
-        "GREEN"
-    )
-
-    if robot is None:
-
-        speak(
-            "Pickup sequence simulated."
-        )
-
-    else:
-
-        speak(
-            "I picked up the key "
-            "and I am holding it."
-        )
-
-    print(
-        "\nOPTION A COMPLETE!"
-    )
-
-
-# ==================================================
-# 17. OPTION B - PICK UP AND DELIVER
-# ==================================================
-
-def option_b(robot):
-
-    print(
-        "\n================================"
-    )
-
-    print(
-        "OPTION B: PICK UP AND DELIVER"
-    )
-
-    print(
-        "================================"
-    )
-
-    leds(
-        robot,
-        "RED"
-    )
-
-    # Move to starting position
-
-    print(
-        "\nMOVING TO START"
-    )
-
-    move(
-        robot,
-        B_START
-    )
-
-    # Open gripper
-
-    open_gripper(robot)
-
-    # Move toward key
-
-    print(
-        "\nMOVING TO KEY"
-    )
-
-    move(
-        robot,
-        B_PICK
-    )
-
-    # Grab key
-
-    close_gripper(robot)
-
-    # Change LED to yellow
-
-    leds(
-        robot,
-        "YELLOW"
-    )
-
-    # Move to delivery position
-
-    print(
-        "\nMOVING TO DELIVERY POSITION"
-    )
-
-    move(
-        robot,
-        B_DELIVER,
-        reverse=True
-    )
-
-    # Release key
-
-    open_gripper(robot)
-
-    # Return home
-
-    print(
-        "\nRETURNING HOME"
-    )
-
-    move(
-        robot,
-        B_RETURN
-    )
-
-    leds(
-        robot,
-        "GREEN"
-    )
-
-    if robot is None:
-
-        speak(
-            "Delivery sequence simulated."
-        )
-
-    else:
-
-        speak(
-            "I have delivered the key."
-        )
-
-    print(
-        "\nOPTION B COMPLETE!"
-    )
-
-
-# ==================================================
-# 18. CHECK ROBOT SETTINGS
-# ==================================================
-
-def check_action(action):
-
-    positions = [
-        A_START,
-        A_PICK,
-        A_RETURN,
-        B_START,
-        B_PICK,
-        B_DELIVER,
-        B_RETURN
-    ]
-
-    for position in positions:
-
-        if len(position) != 5:
-
-            raise ValueError(
-                "Every position needs 5 values"
-            )
-
-        for value in position:
-
-            if (
-                type(value) is not int
-                or not 600 <= value <= 2600
-            ):
-
-                raise ValueError(
-                    "Invalid servo position"
-                )
-
-    if DRY_RUN:
-
-        return
-
-    if not PICK_VERIFIED:
-
-        raise RuntimeError(
-            "Pickup has not been verified"
-        )
-
-    if (
-        action == "PICK_AND_DROP"
-        and not DROP_VERIFIED
-    ):
-
-        raise RuntimeError(
-            "Delivery has not been verified"
-        )
-
-
-# ==================================================
-# 19. MAIN PROGRAM
-# ==================================================
 
 def main():
-
-    print(
-        "\n==================================="
-    )
-
-    print(
-        "       AL5D AI ROBOT ARM"
-    )
-
-    print(
-        "==================================="
-    )
-
-    client = connect_ai()
-
-    print(
-        "\nChoose input method:"
-    )
-
-    print(
-        "1 - Keyboard"
-    )
-
-    print(
-        "2 - Microphone"
-    )
-
-    mode = input(
-        "\nChoose: "
-    ).strip()
-
-    if mode not in (
-        "1",
-        "2"
-    ):
-
-        print(
-            "Invalid input mode"
-        )
-
+    print("AL5D AI ROBOT ARM | KEY A / KEY B / KEY C")
+    mode = input("1 - Keyboard\n2 - Microphone\nChoose: ").strip()
+    if mode not in {"1", "2"}:
         return
-
+    client = connect_ai() if mode == "2" else None
     robot = None
-
+    holding = None
     try:
-
-        # Connect to SSC-32U
-
         if not DRY_RUN:
-
-            print(
-                "\nConnecting to SSC-32U..."
-            )
-
-            robot = serial.Serial(
-                PORT,
-                BAUD,
-                timeout=1
-            )
-
+            robot = serial.Serial(PORT, BAUD, timeout=1)
             time.sleep(1)
-
-            print(
-                "\nROBOT CONNECTED!"
-            )
-
         else:
-
-            print(
-                "\nSIMULATION MODE ENABLED"
-            )
-
-        # Green means ready
-
-        leds(
-            robot,
-            "GREEN"
-        )
-
-        # ==================================
-        # MAIN CONTROL LOOP
-        # ==================================
-
+            print("SIMULATION MODE")
+        leds(robot, "GREEN")
         while True:
-
-            # ==================================
-            # KEYBOARD MODE
-            # ==================================
-
             if mode == "1":
-
-                print(
-                    "\n==================================="
-                )
-
-                print(
-                    "         ROBOT OPTIONS"
-                )
-
-                print(
-                    "==================================="
-                )
-
-                print(
-                    "A - Pick up key and HOLD it"
-                )
-
-                print(
-                    "B - Pick up key and DELIVER it"
-                )
-
-                print(
-                    "Q - Quit program"
-                )
-
-                print(
-                    "\nYou can also type a question"
-                )
-
-                print(
-                    "to talk to the AI assistant."
-                )
-
-                print(
-                    "==================================="
-                )
-
-                message = input(
-                    "\nSelect A, B, Q or type a question: "
-                ).strip()
-
-            # ==================================
-            # MICROPHONE MODE
-            # ==================================
-
+                message = input("\nA - Key A | B - Key B | C - Key C\nR - Confirm key manually removed | Q - Quit\nOr type a question: ").strip()
             else:
-
-                message = listen(
-                    client
-                )
-
+                message = listen(client)
             if not message:
-
                 continue
-
-            # Exit
-
-            if message.lower() in (
-                "q",
-                "quit",
-                "exit",
-                "stop program"
-            ):
-
+            normalized = message.strip().lower().rstrip(".!?")
+            if normalized in {"q", "quit", "exit", "stop program"}:
                 break
-
-            # ==================================
-            # CLASSIFY INSTRUCTION
-            # ==================================
-
-            if message.upper() == "A":
-
-                action = "PICK_ONLY"
-
-            elif message.upper() == "B":
-
-                action = "PICK_AND_DROP"
-
+            if normalized in {"r", "key removed"}:
+                if holding is not None and input("Verify the key has been safely removed without moving the arm. Type REMOVED: ") == "REMOVED":
+                    holding = None
+                continue
+            if mode == "1" and message.upper() in KEYS:
+                action = message.upper()
             else:
-
-                print(
-                    "\nContacting OpenAI..."
-                )
-
-                action = ask_ai(
-                    client,
-                    message
-                )
-
-            print(
-                "\nAI DECISION:",
-                action
-            )
-
-            # ==================================
-            # GENERAL CONVERSATION
-            # ==================================
-
+                if client is None:
+                    client = connect_ai()
+                action = ask_ai(client, message)
+            print("AI DECISION:", action)
             if action == "CHAT":
-
-                chat(
-                    client,
-                    message
-                )
-
-            # ==================================
-            # INVALID INSTRUCTION
-            # ==================================
-
+                chat(client, message)
             elif action == "INVALID":
-
-                speak(
-                    "I cannot perform that movement."
-                )
-
-            # ==================================
-            # OPTION A
-            # ==================================
-
-            elif action == "PICK_ONLY":
-
+                speak("Please specify Key A, Key B or Key C.")
+            elif action in KEYS:
+                if holding is not None:
+                    speak(f"The previous Key {holding} must be safely removed first.")
+                    continue
                 try:
-
-                    check_action(
-                        action
-                    )
-
-                    if not DRY_RUN:
-
-                        print(
-                            "\nOPTION A SELECTED"
-                        )
-
-                        print(
-                            "Pick up and hold the key."
-                        )
-
-                        confirm = input(
-                            "\nType EXECUTE to move: "
-                        )
-
-                        if confirm.strip() != "EXECUTE":
-
-                            print(
-                                "\nMovement cancelled."
-                            )
-
-                            continue
-
-                    option_a(
-                        robot
-                    )
-
-                except Exception as error:
-
-                    print(
-                        "\nROBOT ERROR:",
-                        error
-                    )
-
-                    leds(
-                        robot,
-                        "GREEN"
-                    )
-
-            # ==================================
-            # OPTION B
-            # ==================================
-
-            elif action == "PICK_AND_DROP":
-
-                try:
-
-                    check_action(
-                        action
-                    )
-
-                    if not DRY_RUN:
-
-                        print(
-                            "\nOPTION B SELECTED"
-                        )
-
-                        print(
-                            "Pick up and deliver the key."
-                        )
-
-                        confirm = input(
-                            "\nType EXECUTE to move: "
-                        )
-
-                        if confirm.strip() != "EXECUTE":
-
-                            print(
-                                "\nMovement cancelled."
-                            )
-
-                            continue
-
-                    option_b(
-                        robot
-                    )
-
-                except Exception as error:
-
-                    print(
-                        "\nROBOT ERROR:",
-                        error
-                    )
-
-                    leds(
-                        robot,
-                        "GREEN"
-                    )
-
+                    check_action(action)
+                except (ValueError, RuntimeError) as error:
+                    print(error)
+                    continue
+                speak(f"Key {action} selected. Retrieving and returning to the starting position after confirmation.")
+                if not DRY_RUN and input("Type EXECUTE to move: ").strip() != "EXECUTE":
+                    print("Movement cancelled.")
+                    continue
+                # Stop the session on movement errors; do not allow another pickup
+                # when the physical position or gripper state is unknown.
+                pickup(robot, action)
+                holding = action
+                speak(f"Key {action} pickup and return sequence {'simulated' if DRY_RUN else 'completed'}. Please verify the key is held.")
     finally:
-
         if robot is not None:
+            try:
+                leds(robot, "OFF")
+            finally:
+                robot.close()
+        print("PROGRAM CLOSED")
 
-            leds(
-                robot,
-                "OFF"
-            )
-
-            robot.close()
-
-        print(
-            "\nPROGRAM CLOSED"
-        )
-
-
-# ==================================================
-# 20. START PROGRAM
-# ==================================================
 
 if __name__ == "__main__":
-
     try:
-
         main()
-
     except KeyboardInterrupt:
-
-        print(
-            "\nProgram stopped."
-        )
-
-        print(
-            "Check the robot before restarting."
-        )
-
+        print("Program interrupted. Check the robot before restarting.")
     except Exception as error:
-
-        print(
-            "\nERROR:",
-            type(error).__name__,
-            error
-        )
+        print("ERROR:", type(error).__name__, error)
+        print("Check robot position and gripper before restarting.")
