@@ -3,14 +3,8 @@ import time
 import wave
 import tempfile
 import subprocess
-import tkinter as tk
-
-from tkinter import simpledialog
-
-import serial
-import sounddevice as sd
-
-from openai import OpenAI
+import re
+from getpass import getpass
 
 
 # Robot settings (SSC-32U protocol)
@@ -50,19 +44,7 @@ def connect_ai():
     ).strip()
 
     if not api_key:
-
-        root = tk.Tk()
-
-        root.withdraw()
-
-        api_key = simpledialog.askstring(
-            "AL5D AI Robot",
-            "Enter your OpenAI API key:",
-            show="*",
-            parent=root
-        )
-
-        root.destroy()
+        api_key = getpass("OpenAI API key: ").strip()
 
     if not api_key:
 
@@ -70,6 +52,7 @@ def connect_ai():
             "No OpenAI API key entered."
         )
 
+    from openai import OpenAI
     client = OpenAI(
         api_key=api_key.strip(),
         timeout=40.0,
@@ -84,15 +67,16 @@ def speak(message):
 
     print("\nASSISTANT:", message)
 
-    subprocess.run(
-        ["say", str(message)],
-        check=False
-    )
+    try:
+        subprocess.run(["say", str(message)], check=False)
+    except OSError:
+        pass  # Text remains available if macOS speech is unavailable.
 
 
 
 def listen(client):
 
+    import sounddevice as sd
     print("\nMICROPHONE MODE")
 
     input(
@@ -189,7 +173,22 @@ def listen(client):
 
             os.remove(filename)
 
+def named_keys(instruction):
+    text = instruction.lower()
+    names = set(re.findall(r"\bkey\s+([a-z])\b|\b([a-z])\s+key\b", text))
+    found = {a or b for a, b in names}
+    found.update(letter for word, letter in (("first", "a"), ("second", "b"), ("third", "c")) if re.search(rf"\b{word}\s+key\b", text))
+    return {letter.upper() for letter in found}
+
+
 def ask_ai(client, instruction):
+    # Fail closed on obvious ambiguity and negative commands.
+    text = instruction.strip().lower()
+    if not text or re.search(r"\b(?:do not|don't|dont|never|not|cancel|stop)\b", text):
+        return "INVALID"
+    keys = named_keys(text)
+    if len(keys) > 1 or keys - set(KEYS) or re.search(r"\b(?:all|both|every)\s+(?:three\s+)?keys\b|\bkey\s+[abc]\s*(?:,|and|or)\s*[abc]\b", text):
+        return "INVALID"
     response = client.responses.create(
         model="gpt-4.1-mini",
         instructions="""Classify the AL5D physical key retrieval request.
@@ -199,10 +198,13 @@ Examples: 'Get me Key A' -> A; 'Can you grab key B?' -> B;
 'I need the third key' -> C. First/second/third mean A/B/C.
 CHAT: general conversation or hypothetical questions.
 INVALID: ambiguous, multiple keys, unsupported actions or missing key identity.
-Never infer a key when unspecified. Never generate servo commands.""",
+Negated, hypothetical, conditional or quoted requests must not cause movement. Never infer a key when unspecified. Never generate servo commands.""",
         input=instruction,
     )
     decision = response.output_text.strip().upper()
+    if decision in KEYS:
+        if keys != {decision} or re.search(r"\b(?:if|imagine|suppose|hypothetically|what happens|what would)\b", text):
+            return "INVALID"
     return decision if decision in {"A", "B", "C", "CHAT", "INVALID"} else "INVALID"
 
 def chat(client, question):
@@ -246,9 +248,9 @@ def send(robot, command):
 
         return
 
-    robot.write(
-        command.encode("ascii")
-    )
+    payload = command.encode("ascii")
+    if robot.write(payload) != len(payload):
+        raise OSError("Incomplete serial write")
 
     robot.flush()
 
@@ -317,7 +319,9 @@ def leds(robot, status):
 
 def servo(robot, channel, position):
 
-    if not isinstance(position, int):
+    if type(channel) is not int or not 0 <= channel <= 5:
+        raise ValueError("Invalid servo channel")
+    if type(position) is not int:
 
         raise ValueError(
             "Servo position must be an integer"
@@ -352,7 +356,7 @@ def servo(robot, channel, position):
 
 def move(robot, positions, reverse=False):
 
-    if len(positions) != 5:
+    if len(positions) != 5 or any(type(v) is not int or not 600 <= v <= 2600 for v in positions):
 
         raise ValueError(
             "Position must contain 5 values"
@@ -410,6 +414,8 @@ def close_gripper(robot):
     )
 
 def check_action(key):
+    if key not in KEYS:
+        raise ValueError("Unsupported key")
     for pose in KEYS[key]:
         if len(pose) != 5 or any(type(v) is not int or not 600 <= v <= 2600 for v in pose):
             raise ValueError(f"Key {key}: calibrate all five joint positions first.")
@@ -418,6 +424,7 @@ def check_action(key):
 
 
 def pickup(robot, key):
+    check_action(key)
     start, target, returned = KEYS[key]
     leds(robot, "RED")
     move(robot, start)
@@ -440,7 +447,8 @@ def main():
     holding = None
     try:
         if not DRY_RUN:
-            robot = serial.Serial(PORT, BAUD, timeout=1)
+            import serial
+            robot = serial.Serial(PORT, BAUD, timeout=1, write_timeout=2)
             time.sleep(1)
         else:
             print("SIMULATION MODE")
@@ -449,7 +457,11 @@ def main():
             if mode == "1":
                 message = input("\nA - Key A | B - Key B | C - Key C\nR - Confirm key manually removed | Q - Quit\nOr type a question: ").strip()
             else:
-                message = listen(client)
+                try:
+                    message = listen(client)
+                except Exception as error:
+                    print("Microphone/transcription error:", type(error).__name__)
+                    continue
             if not message:
                 continue
             normalized = message.strip().lower().rstrip(".!?")
@@ -464,10 +476,17 @@ def main():
             else:
                 if client is None:
                     client = connect_ai()
-                action = ask_ai(client, message)
+                try:
+                    action = ask_ai(client, message)
+                except Exception as error:
+                    print("AI request failed:", type(error).__name__)
+                    continue
             print("AI DECISION:", action)
             if action == "CHAT":
-                chat(client, message)
+                try:
+                    chat(client, message)
+                except Exception as error:
+                    print("AI chat failed:", type(error).__name__)
             elif action == "INVALID":
                 speak("Please specify Key A, Key B or Key C.")
             elif action in KEYS:
@@ -490,10 +509,7 @@ def main():
                 speak(f"Key {action} pickup and return sequence {'simulated' if DRY_RUN else 'completed'}. Please verify the key is held.")
     finally:
         if robot is not None:
-            try:
-                leds(robot, "OFF")
-            finally:
-                robot.close()
+            robot.close()
         print("PROGRAM CLOSED")
 
 
