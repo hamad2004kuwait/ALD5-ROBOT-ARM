@@ -175,8 +175,7 @@ def listen(client):
 
 def named_keys(instruction):
     text = instruction.lower()
-    names = set(re.findall(r"\bkey\s+([a-z])\b|\b([a-z])\s+key\b", text))
-    found = {a or b for a, b in names}
+    found = set(re.findall(r"\bkey\s+([a-z])\b", text))
     found.update(letter for word, letter in (("first", "a"), ("second", "b"), ("third", "c")) if re.search(rf"\b{word}\s+key\b", text))
     return {letter.upper() for letter in found}
 
