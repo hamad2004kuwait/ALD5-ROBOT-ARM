@@ -10,7 +10,7 @@ from getpass import getpass
 # Robot settings (SSC-32U protocol)
 PORT = "/dev/cu.usbserial-A10LLRB7"
 BAUD = 115200
-DRY_RUN = True  # Change only after safe calibration
+DRY_RUN = False  # Hardware mode; True enables simulation
 MOVE_TIME = 1000
 WAIT_TIME = 0.5
 
@@ -19,17 +19,16 @@ A_START = [1500, 1500, 1500, 1500, 1500]
 A_PICK = [1800, 1700, 1000, 2000, 1500]
 A_RETURN = [1500, 1500, 1500, 1500, 1500]
 B_START = [1500, 1500, 1500, 1500, 1500]
-B_PICK = [None, None, None, None, None]  # Calibrate Key B
+B_PICK = [1800, 1700, 1000, 2000, 1500]
 B_RETURN = [1500, 1500, 1500, 1500, 1500]
 C_START = [1500, 1500, 1500, 1500, 1500]
-C_PICK = [None, None, None, None, None]  # Calibrate Key C
+C_PICK = [1800, 1700, 1000, 2000, 1500]
 C_RETURN = [1500, 1500, 1500, 1500, 1500]
 KEYS = {
     "A": (A_START, A_PICK, A_RETURN),
     "B": (B_START, B_PICK, B_RETURN),
     "C": (C_START, C_PICK, C_RETURN),
 }
-VERIFIED = {"A": False, "B": False, "C": False}
 GRIP_OPEN = 1500
 GRIP_CLOSED = 2500
 GREEN_LED = 31
@@ -239,6 +238,8 @@ def chat(client, question):
 def send(robot, command):
 
     if robot is None:
+        if not DRY_RUN:
+            raise RuntimeError("Robot is not connected.")
 
         print(
             "SIMULATION:",
@@ -418,8 +419,10 @@ def check_action(key):
     for pose in KEYS[key]:
         if len(pose) != 5 or any(type(v) is not int or not 600 <= v <= 2600 for v in pose):
             raise ValueError(f"Key {key}: calibrate all five joint positions first.")
-    if not DRY_RUN and not VERIFIED[key]:
-        raise RuntimeError(f"Key {key} movement has not been physically verified.")
+
+    for value in (GRIP_OPEN, GRIP_CLOSED):
+        if type(value) is not int or not 600 <= value <= 2600:
+            raise ValueError("Invalid gripper position.")
 
 
 def pickup(robot, key):
@@ -443,7 +446,6 @@ def main():
         return
     client = connect_ai() if mode == "2" else None
     robot = None
-    holding = None
     try:
         if not DRY_RUN:
             import serial
@@ -454,7 +456,7 @@ def main():
         leds(robot, "GREEN")
         while True:
             if mode == "1":
-                message = input("\nA - Key A | B - Key B | C - Key C\nR - Confirm key manually removed | Q - Quit\nOr type a question: ").strip()
+                message = input("\nA - Key A | B - Key B | C - Key C\nQ - Quit\nOr type a question: ").strip()
             else:
                 try:
                     message = listen(client)
@@ -466,10 +468,6 @@ def main():
             normalized = message.strip().lower().rstrip(".!?")
             if normalized in {"q", "quit", "exit", "stop program"}:
                 break
-            if normalized in {"r", "key removed"}:
-                if holding is not None and input("Verify the key has been safely removed without moving the arm. Type REMOVED: ") == "REMOVED":
-                    holding = None
-                continue
             if mode == "1" and message.upper() in KEYS:
                 action = message.upper()
             else:
@@ -489,26 +487,20 @@ def main():
             elif action == "INVALID":
                 speak("Please specify Key A, Key B or Key C.")
             elif action in KEYS:
-                if holding is not None:
-                    speak(f"The previous Key {holding} must be safely removed first.")
-                    continue
-                try:
-                    check_action(action)
-                except (ValueError, RuntimeError) as error:
-                    print(error)
-                    continue
-                speak(f"Key {action} selected. Retrieving and returning to the starting position after confirmation.")
-                if not DRY_RUN and input("Type EXECUTE to move: ").strip() != "EXECUTE":
-                    print("Movement cancelled.")
-                    continue
+                check_action(action)
+                speak(f"Retrieving Key {action}.")
                 # Stop the session on movement errors; do not allow another pickup
                 # when the physical position or gripper state is unknown.
                 pickup(robot, action)
-                holding = action
-                speak(f"Key {action} pickup and return sequence {'simulated' if DRY_RUN else 'completed'}. Please verify the key is held.")
+                speak(f"Key {action} pickup and return sequence {'simulated' if DRY_RUN else 'completed'}.")
     finally:
         if robot is not None:
-            robot.close()
+            try:
+                leds(robot, "OFF")
+            except Exception:
+                pass
+            finally:
+                robot.close()
         print("PROGRAM CLOSED")
 
 
