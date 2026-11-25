@@ -1,12 +1,10 @@
 from unittest.mock import Mock
 import pytest
-import AL5D_Key_Fetcher as arm
+import GDIP_CODE as arm
 
 @pytest.mark.parametrize('key',['A','B','C'])
 def test_complete_sequence(key,monkeypatch):
-    # Synthetic poses for B/C only; not physical calibration.
-    poses=([1500]*5,[1600,1550,1450,1500,1500],[1500]*5)
-    monkeypatch.setitem(arm.KEYS,key,poses)
+    poses=arm.KEYS[key]
     robot=Mock(); robot.write.side_effect=lambda data:len(data)
     monkeypatch.setattr(arm.time,'sleep',lambda _:None)
     arm.pickup(robot,key)
@@ -16,7 +14,7 @@ def test_complete_sequence(key,monkeypatch):
     assert servo==expected
     assert commands.index('#29H\r')<commands.index('#28H\r')<commands.index('#31H\r')
 
-@pytest.mark.parametrize('messages,count',[(['1','A','A','Q'],1),(['1','A','R','REMOVED','A','Q'],2),(['1','B','Q'],0),(['1','','Q'],0)])
+@pytest.mark.parametrize('messages,count',[(['1','A','A','Q'],2),(['1','A','B','C','Q'],3),(['1','B','Q'],1),(['1','','Q'],0)])
 def test_keyboard_session(messages,count,monkeypatch):
     monkeypatch.setattr('builtins.input',lambda _:next(iterator))
     iterator=iter(messages)
