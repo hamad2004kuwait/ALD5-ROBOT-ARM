@@ -29,7 +29,7 @@ Record observations after supervised hardware testing. Clear the work area and v
 | H02 | Key B keyboard retrieval | Verified pickup and return | Pass |
 | H03 | Key C keyboard retrieval | Verified pickup and return | Pass|
 | H04 | Voice commands A/B/C | Correct selection and retrieval | Pass |
-| H05 | Invalid voice input | No movement | Pending |
+| H05 | Invalid voice input | No movement | Pass |
 | H06 | Repeat retrieval with empty gripper | Consistent pickup and return | Pass |
 | H07 | LED indicators | Red, yellow, green in order | Pass |
 | H08 | Retrieval duration | Record seconds for each trial | Pass |
