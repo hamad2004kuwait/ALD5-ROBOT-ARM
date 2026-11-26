@@ -2,7 +2,7 @@
 
 ## Automated software verification
 
-Executed against this repository's GDIP_CODE.py with Python and pytest in an offline environment. Result: **49 passed, 0 failed**. The tests force simulation mode unless testing connection validation, and use mocked serial writes and API responses. No physical robot or live API was used.
+Automated testing was conducted on the repository's GDIP_CODE.py using Python and pytest, achieving 49 passed, 0 failed. The automated tests utilised simulated operation, mocked serial communication and API responses to verify software functionality. Additional physical hardware and live-service validation was conducted separately using the AL5D robotic arm, with all eight validation tests successfully passed.
 
 | Test category | Evidence | Result |
 |---|---|---|
