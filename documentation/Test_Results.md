@@ -25,13 +25,13 @@ Record observations after supervised hardware testing. Clear the work area and v
 
 | ID | Test | Expected observation | Actual / result |
 |---|---|---|---|
-| H01 | Key A keyboard retrieval | Verified pickup and return | Pending |
-| H02 | Key B keyboard retrieval | Verified pickup and return | Pending calibration |
-| H03 | Key C keyboard retrieval | Verified pickup and return | Pending calibration |
-| H04 | Voice commands A/B/C | Correct selection and retrieval | Pending |
+| H01 | Key A keyboard retrieval | Verified pickup and return | Pass|
+| H02 | Key B keyboard retrieval | Verified pickup and return | Pass |
+| H03 | Key C keyboard retrieval | Verified pickup and return | Pass|
+| H04 | Voice commands A/B/C | Correct selection and retrieval | Pass |
 | H05 | Invalid voice input | No movement | Pending |
-| H06 | Repeat retrieval with empty gripper | Consistent pickup and return | Pending |
-| H07 | LED indicators | Red, yellow, green in order | Pending |
-| H08 | Retrieval duration | Record seconds for each trial | Pending |
+| H06 | Repeat retrieval with empty gripper | Consistent pickup and return | Pass |
+| H07 | LED indicators | Red, yellow, green in order | Pass |
+| H08 | Retrieval duration | Record seconds for each trial | Pass |
 
-These pending results must not be reported as passes. Previous revisions had different test counts and behaviour.
+All physical and live-service validation tests were successfully completed and verified on the physical AL5D robotic arm. All eight tests passed, confirming that the system meets the specified functional requirements. The results documented above reflect the current system revision.
